@@ -1,5 +1,5 @@
 # Cura4Cetus
-This cura post-processing script is intended to ease and improve the usability of the Cetus3D printer with Cura. By rearranging the GCode it introduces some functionalities implemented in UpStudio selectable with just a click.
+This post-processing script is intended to ease and improve the usability of the Cetus3D printer with Cura. By a deeper manipulation of the GCode, it introduces some functionalities implemented in UpStudio selectable with just a click.
 
 ## Screenshot
 ![Screenshot](https://raw.githubusercontent.com/dpellegr/Cura4Cetus/master/Screenshot.png)
