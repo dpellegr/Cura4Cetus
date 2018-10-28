@@ -30,7 +30,7 @@ class Cura4Cetus(Script):
                     "label": "Extrusion flow",
                     "description": "Calibrate the extrusion movement to obtain the proper flow. Increase to correct for underextrusion.",
                     "type": "float",
-                    "default_value": 180
+                    "default_value": 200
                 },
                 "YX":
                 {
@@ -60,8 +60,8 @@ class Cura4Cetus(Script):
                     "description": "Degrees of the extruder rotation for the purge line",
                     "type": "float",
                     "unit": "Deg",
-                    "default_value": 360,
-                    "enabled": "Purge == 'manual'"
+                    "default_value": 180,
+                    "enabled": "Purge != 'disabled'"
                 },
                 "PurgeStartX":
                 {
@@ -69,7 +69,7 @@ class Cura4Cetus(Script):
                     "description": "Starting X coordinate of the purge line",
                     "type": "float",
                     "unit": "mm",
-                    "default_value": 5,
+                    "default_value": 3,
                     "enabled": "Purge == 'manual'"
                 },
                 "PurgeStartY":
@@ -78,7 +78,7 @@ class Cura4Cetus(Script):
                     "description": "Starting Y coordinate of the purge line",
                     "type": "float",
                     "unit": "mm",
-                    "default_value": 5,
+                    "default_value": 3,
                     "enabled": "Purge == 'manual'"
                 },
                 "PurgeEndX":
@@ -87,7 +87,7 @@ class Cura4Cetus(Script):
                     "description": "Ending X coordinate of the purge line",
                     "type": "float",
                     "unit": "mm",
-                    "default_value": 55,
+                    "default_value": 33,
                     "enabled": "Purge == 'manual'"
                 },
                 "PurgeEndY":
@@ -96,8 +96,16 @@ class Cura4Cetus(Script):
                     "description": "Ending Y coordinate of the purge line",
                     "type": "float",
                     "unit": "mm",
-                    "default_value": 5,
+                    "default_value": 3,
                     "enabled": "Purge == 'manual'"
+                },
+                "CutPower":
+                {   
+                    "label": "Power off",
+                    "description": "Cut the power to the motors when the print is finished, before doing this the head can be lowered to touch the bed.",
+                    "type": "enum",
+                    "options": {" no":"No","yeshigh":"Yes, head high","yeslow":"Yes, head low"},
+                    "default_value": "no"
                 }
             }
         }"""
@@ -120,11 +128,8 @@ M42 P4 S0 ; Beep OFF
     def insert(self, data, index, containing, new, replace=False) :
          d = data[index].splitlines()
          done = False
-         print("Cura4Cetus INSERT", new)
          for i in range(len(d)):
-             print("Cura4Cetus ", i, d[i])
              if containing in d[i]:
-                 print ("Cura4Cetus REPLACING here")
                  done = True
                  if replace :
                      d[i] = new
@@ -149,11 +154,11 @@ M42 P4 S0 ; Beep OFF
                 my = rey.search(line)
                 if mx :
                     xi = float(mx.group()[1:])
-                    if xi < x :
+                    if xi < x and xi > 0 :
                         x = xi
                 if my :
                     yi = float(my.group()[1:])
-                    if yi < y :
+                    if yi < y and xi > 0 :
                         y = yi
         return x,y
 
@@ -171,7 +176,7 @@ M42 P4 S0 ; Beep OFF
             yi -= 5
             xf = xi+50
             yf = yi
-            E = 360
+            E = self.getSettingValueByKey("PurgeE")
         if self.getSettingValueByKey("Purge") == "manual" :
             xi = self.getSettingValueByKey("PurgeStartX")
             yi = self.getSettingValueByKey("PurgeStartY")
@@ -180,46 +185,48 @@ M42 P4 S0 ; Beep OFF
             E = self.getSettingValueByKey("PurgeE")
         if not(self.check_low_bound(xi,yi) and self.check_up_bound(xf,yf)) :
             print("Cura4Cetus WARNING: purge line doesn't fit, skipping")
-            purge_str = "; Purge line outside boundaries: skipped\n"
+            purge_str = "; Skipped purge line outside boundaries ({},{}) ({},{})\n".format(xi,yi,xf,yf)
         else:
             if self.getSettingValueByKey("Purge") != "disabled" :
                 purge_str += \
 """; BEGIN Purge Line
 G1 X{} Y{} F5000     ; move to front left corner
-G1 Z0.2 F1000        ; get nozzle close to bed
+G1 Z0.3 F1000        ; get nozzle close to bed
 G92 E0               ; zero the extruded length
 G1 X{} Y{} E{} F500  ; extrude a 5cm purge line
 G92 E0               ; zero the extruded length
-G1 E-12.5 Z10 F2700  ; retract a little
+G1 E-45 F5000        ; retract a little
+G1 Z5                ; head up a bit
+G1 E-10              ; reverse retraction
 ; END Purge Line
 """.format(xi,yi,xf,yf,E)
         return purge_str
 
     def header(self,data):
+        header_title = "; === Cura4Cetus HEADER ===\n"
         Z = self.getSettingValueByKey("Z")
         E = self.getSettingValueByKey("E")
         Sound = self.getSettingValueByKey("Sound")
-        ## add beep before heating
-        if Sound :
-            self.insert(data, 1, ";Generated ", self.beep(300))
-        ## create the new header string
-        header_str = "; === Cura4Cetus HEADER ===\n"
-        if Sound :
-            header_str += self.beep(300)
-        header_str += \
-"""M206 Z-{}            ; Customized for the actual value
+        ## Before Heating: axes calibration and positioning
+        self.insert(data, 1, ";Generated", \
+"""; === Cura4Cetus HEADER ===
+M80                  ; ATX Power On
+M206 Z-{}           ; Customized for the actual value
 M206 X-180           ; offset X axis so the coordinates are 0..180, normally they are -180..0
 M204 P800            ; set acceleration
-""".format(Z) + self.makepurge(data) + \
-"""M92 E{}              ; calibrate extrusion rate
+""".format(Z) + (self.beep(300) if Sound else "") + \
+"""G0 Z{} F5000         ; bring the head up to the top, to unclip the hook
+G0 Z25                ; bring the head down before heating, to reduce oozing
+""".format(Z))
+        ## after heating: sound, print purge, calibrate extrusion rate
+        self.insert(data, 1, "G92 ", (self.beeps(200,400,2) if Sound else "") + self.makepurge(data) + \
+"""M92 E{}     ; adjust extruder flow rate
 ; === Cura4Cetus END of HEADER ===
-""".format(E)
-        ## now fixing it
-        self.insert(data, 1, "G1 ", header_str, replace=True)
+""".format(E))
         return data
 
     def footer(self,data):
-        Z = self.getSettingValueByKey("Z")
+        Z = 0 if (self.getSettingValueByKey("Power") == "yeslow") else self.getSettingValueByKey("Z")
         Sound = self.getSettingValueByKey("Sound")
         footer_str = \
 """
@@ -229,10 +236,14 @@ G1 E-30  ; retract a bit to avoid clogging
 M109     ; switch off extruder
 M191     ; switch off heated bed
 G1 Z{} F5500   ; Safe place
-G1 X3.0 Y3.0 ; Safe place
-""".format(Z)
-        if Sound :
+G1 X0 Y0 ; Safe place
+""".format(Z) 
+        if Sound:
             footer_str += self.beeps(100,300,3)
+        if (self.getSettingValueByKey("CutPower") == "yeshigh") :
+            footer_str += "M81    ; ATX Power Off\n"
+        if (self.getSettingValueByKey("CutPower") == "yeslow") :
+            footer_str += "G1 Z0\nM81    ; ATX Power Off\n"
         footer_str += "M2   ; end of program\n; === Cura4Cetus END of Footer ===\n"
         data[-1] = footer_str
         return data
