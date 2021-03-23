@@ -1,4 +1,4 @@
-# Copyright (c) 2018 Dario Pellegrini
+# Copyright (c) 2018-2021 Dario Pellegrini < pellegrini.dario@gmail.com >
 # The PostProcessingPlugin is released under the terms of the AGPLv3 or higher.
 from ..Script import Script
 import re
@@ -20,7 +20,7 @@ class Cura4Cetus(Script):
                 "Z":
                 {
                     "label": "Z axis height",
-                    "description": "The heigth of the Z axis.",
+                    "description": "The heigth of the Z axis. Tune this value carefully within UpStudio with the bed levelling procedure, then copy it back here.",
                     "unit": "mm",
                     "type": "float",
                     "default_value": 266
@@ -28,28 +28,28 @@ class Cura4Cetus(Script):
                 "E":
                 {
                     "label": "Extrusion flow",
-                    "description": "Calibrate the extrusion movement to obtain the proper flow. Increase to correct for underextrusion.",
+                    "description": "Calibrate the rotation of the extruder motor to obtain the proper flow. Higher values compensate for underextrusion.",
                     "type": "float",
-                    "default_value": 200
+                    "default_value": 240
                 },
                 "YX":
                 {
                     "label": "Rotate X and Y",
-                    "description": "Cetus considers the plate movement as the X axis and the head movement as the Y axis. When enable the axis are rotated in order reproduce the UpStudio behaviour.",
+                    "description": "Cetus considers the bed rail as the X axis and the head rail as the Y axis. This is the opposite of what you may expect when slicing in Cura. Enable this setting to rotate the axes.",
                     "type": "bool",
                     "default_value": true
                 },
                 "Sound":
                 {
                     "label": "Sound",
-                    "description": "Play sounds when starting and ending the print job.",
+                    "description": "Play beeps when starting and ending the print job.",
                     "type": "bool",
                     "default_value": true
                 },
                 "Purge":
                 {   
                     "label": "Purge line",
-                    "description": "Prints a purge line at the beginning of the print job",
+                    "description": "Prints a purge line at the beginning of the print job. Automatic will print a 5 cm line next to the part if space is available. Manual allows specifying the start and end point.",
                     "type": "enum",
                     "options": {"auto":"Automatic","manual":"Manual","disabled":"Disabled"},
                     "default_value": "auto"
@@ -87,7 +87,7 @@ class Cura4Cetus(Script):
                     "description": "Ending X coordinate of the purge line",
                     "type": "float",
                     "unit": "mm",
-                    "default_value": 33,
+                    "default_value": 53,
                     "enabled": "Purge == 'manual'"
                 },
                 "PurgeEndY":
@@ -99,13 +99,21 @@ class Cura4Cetus(Script):
                     "default_value": 3,
                     "enabled": "Purge == 'manual'"
                 },
+                "HeadPos":
+                {
+                    "label": "Final head position",
+                    "description": "Where to place the head once the print is over. Raise will raise the head 1 cm above the part. Raise and corner will also move the head to the top left corner. Top will raise the head to the top of the z axis.",
+                    "type": "enum",
+                    "options": {"r":"Raise","rc":"Raise and corner","t":"Top and corner"},
+                    "default_value": "rc"
+                },
                 "CutPower":
                 {   
-                    "label": "Power off",
-                    "description": "Cut the power to the motors when the print is finished, before doing this the head can be lowered to touch the bed.",
-                    "type": "enum",
-                    "options": {" no":"No","yeshigh":"Yes, head high","yeslow":"Yes, head low"},
-                    "default_value": "no"
+                    "label": "Power off when finished",
+                    "description": "Cut the power to the motors when the print is finished. If final head position is set to raise, a two minutes delay will be added for nozzle cooling. If you raise the head to the top, make sure to install a hook, otherwise the head will slam into the bed.",
+                    "type": "bool",
+                    "default_value": false,
+                    "enabled": "HeadPos != 'rc'"
                 }
             }
         }"""
@@ -158,9 +166,21 @@ M42 P4 S0 ; Beep OFF
                         x = xi
                 if my :
                     yi = float(my.group()[1:])
-                    if yi < y and xi > 0 :
+                    if yi < y and yi > 0 :
                         y = yi
         return x,y
+
+    def maxz(self,data):
+        z = 0
+        rez = re.compile(r"Z[-+]?\d+\.?\d*")
+        for layer in data:
+            for line in layer.splitlines():
+                mz = rez.search(line)
+                if mz :
+                    zi = float(mz.group()[1:])
+                    if zi > z :
+                        z = zi
+        return z
 
     def check_low_bound(self,x,y):
         return (x>0 and y>0)
@@ -215,7 +235,7 @@ M206 Z-{}           ; Customized for the actual value
 M206 X-180           ; offset X axis so the coordinates are 0..180, normally they are -180..0
 M204 P800            ; set acceleration
 """.format(Z) + (self.beep(300) if Sound else "") + \
-"""G0 Z{} F5000         ; bring the head up to the top, to unclip the hook
+""";G0 Z{} F5000         ; bring the head up to the top, to unclip the hook
 G0 Z25                ; bring the head down before heating, to reduce oozing
 """.format(Z))
         ## after heating: sound, print purge, calibrate extrusion rate
@@ -226,24 +246,28 @@ G0 Z25                ; bring the head down before heating, to reduce oozing
         return data
 
     def footer(self,data):
-        Z = 0 if (self.getSettingValueByKey("Power") == "yeslow") else self.getSettingValueByKey("Z")
-        Sound = self.getSettingValueByKey("Sound")
+        Sound   = self.getSettingValueByKey("Sound")
+        HeadPos = self.getSettingValueByKey("HeadPos")
+        Z       = self.getSettingValueByKey("Z")
+        Zpart   = min(Z, self.maxz(data)+10);
         footer_str = \
 """
 ; === Cura4Cetus FOOTER ===
 G92 E0   ; zero the extruded length
-G1 E-30  ; retract a bit to avoid clogging
+G1 Z{} E-50  ; retract a bit to avoid clogging
 M109     ; switch off extruder
 M191     ; switch off heated bed
-G1 Z{} F5500   ; Safe place
-G1 X0 Y0 ; Safe place
-""".format(Z) 
+""".format(Zpart)
+        if HeadPos == 't':
+            footer_str += "G1 Z{} F5000 ; Raise the head to the top\n".format(Z)
+        if HeadPos != 'r':
+            footer_str += "G1 X0 Y0 ; Move the head to the corner\n"
         if Sound:
             footer_str += self.beeps(100,300,3)
-        if (self.getSettingValueByKey("CutPower") == "yeshigh") :
+        if HeadPos != 'rc' and self.getSettingValueByKey("CutPower") :
+            if HeadPos == 'r': 
+                footer_str += "G4 P120000 ; Pause for 2 min to allow for nozzle cooling\n"
             footer_str += "M81    ; ATX Power Off\n"
-        if (self.getSettingValueByKey("CutPower") == "yeslow") :
-            footer_str += "G1 Z0\nM81    ; ATX Power Off\n"
         footer_str += "M2   ; end of program\n; === Cura4Cetus END of Footer ===\n"
         data[-1] = footer_str
         return data
