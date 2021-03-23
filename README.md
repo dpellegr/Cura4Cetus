@@ -1,21 +1,37 @@
 # Cura4Cetus
-This post-processing script is intended to ease and improve the usability of the Cetus3D printer with Cura. By a deeper manipulation of the GCode, it introduces some functionalities implemented in UpStudio selectable with just a click.
+
+### Cura + Cetus = 🤕
+### Cura + Cetus + Cura4Cetus = 😊
+
+Cura4Cetus is intended to ease and improve the usability of the Tiertime Cetus3D printer with the Ultimaker Cura slicer. Experienced makers might prefer the latter to the original Tiertime UpStudio software due to its extra fine control of the slicing process. 
+
+Cura4Cetus operates as a post processing script modifying the G-code produced by Cura. By doing so it introduces some of the functionalities implemented in UpStudio (such as beeping and purge lines) and more, selectable with just a click.
 
 ## Screenshot
 ![Screenshot](https://raw.githubusercontent.com/dpellegr/Cura4Cetus/master/Screenshot.png)
 
 ## Features
-* Centralised GCode manipulation, no need for custom begin and end GCode sections.
-* Dialog windows to adjust several settings:
-  * Z axis length setting.
+* Centralised GCode manipulation, no need for custom begin and end G-code sections.
+* Dialog windows adds the following entries:
+  * Setting the Z axis length.
   * Calibration of the extrusion flow.
   * Rotation of the X and Y axis to a more intuitive positioning.
-  * Reproducing sounds at the start of the job, after the heating and at the end of the job.
+  * Reproducing sounds at the start of the job, when the hotend heating completes, and at the end of the job.
   * Printing of a purge line.
+  * Controlling the position of the head after the print.
+  * Possibility to switch off the motors.
 
 ## Installation
-Download Cura4Cetus to the folder `/cura/plugins/PostProcessingPlugins/scripts/` (please find the full path according to your platform). You may want to remove the start and/or end GCode from the printer settings.
+Download the script `Cura4Cetus.py` to the folder `YOUR_CURA_INSTALL_PATH/cura/plugins/PostProcessingPlugins/scripts/` (please find the full path according to your platform).
+
+If you attempted to load some Start/End G-code before finding this script, make sure to remove it from `preferences -> printers -> Machine Settings`.
 
 ## Usage
-Click on `Extensions > Post processing > Modify G-Code` then select Cetus4Cura from `Add a script` and configure it following the on screen documentation. Enjoy!
+Click on `Extensions > Post processing > Modify G-Code` then select Cetus4Cura from `Add a script` and configure it following the on screen documentation.
 
+## Notes
+ * In order to produce G-code that succesfully prints on the Cetus, you still have to implement printer profiles for the various nozzles and layer thicknesses that you intend to use. I may try to collect a few in a database, contributions are welcomed.
+ * An installation of UpStudio will still be required to send the G-code to the printer.
+
+
+## Enjoy!
