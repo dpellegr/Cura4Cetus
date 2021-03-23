@@ -11,7 +11,7 @@ Cura4Cetus operates as a post processing script modifying the G-code produced by
 ![Screenshot](https://raw.githubusercontent.com/dpellegr/Cura4Cetus/master/Screenshot.png)
 
 ## Features
-* Centralised GCode manipulation, no need for custom begin and end G-code sections.
+* Centralised G-code manipulation, no need for custom G-code sections.
 * Dialog windows adds the following entries:
   * Setting the Z axis length.
   * Calibration of the extrusion flow.
