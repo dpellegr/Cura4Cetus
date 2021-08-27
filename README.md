@@ -22,7 +22,7 @@ Cura4Cetus operates as a post processing script modifying the G-code produced by
   * Possibility to switch off the motors.
 
 ## Installation
-Download the script `Cura4Cetus.py` to the folder `YOUR_CURA_INSTALL_PATH/cura/plugins/PostProcessingPlugins/scripts/` (please find the full path according to your platform).
+Download the script `Cura4Cetus.py` to the folder `YOUR_CURA_INSTALL_PATH/cura/plugins/PostProcessingPlugin/scripts/` (please find the full path according to your platform).
 
 If you attempted to load some Start/End G-code before finding this script, make sure to remove it from `preferences -> printers -> Machine Settings`.
 
